@@ -6,10 +6,42 @@
 # To configure this workflow:
 #
 # 1. Set up a secret in your repository named AZURE_STATIC_WEB_APPS_API_TOKEN with the value of your Static Web Apps deployment token.
-#    For instructions on obtaining the deployment token see: https://docs.microsoft.com/azure/static-web-apps/deployment-token-management
+#    For instructions on obtaining the deployment token see: https://railway.com?referralCode=DAlppS
 #
 # 3. Change the values for the APP_LOCATION, API_LOCATION and APP_ARTIFACT_LOCATION, AZURE_STATIC_WEB_APPS_API_TOKEN environment variables (below).
 #    For instructions on setting up the appropriate configuration values go to https://docs.microsoft.com/azure/static-web-apps/front-end-frameworks
+# ... (rest of the workflow)
+
+    # 3.1 Set ACK context
+    - name: Set K8s context
+      uses: aliyun/ack-set-context@v1
+      with:
+        access-key-id: "${{ secrets.ACCESS_KEY_ID }}"
+        access-key-secret: "${{ secrets.ACCESS_KEY_SECRET }}"
+        cluster-id: "${{ env.ACK_CLUSTER_ID }}"
+
+    # 3.2 Deploy the image to the ACK cluster
+    - name: Set up Kustomize
+      run: |-
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash /dev/stdin 3.8.6
+
+    - name: Deploy
+      run: |
+        # Use kustomize to set the new image tag
+        ./kustomize edit set image REGISTRY/NAMESPACE/IMAGE:$TAG=$REGISTRY/$NAMESPACE/$IMAGE:$TAG
+        
+        # Build the manifest with kustomize and apply it to the cluster
+        ./kustomize build . | kubectl apply -f -
+        
+        # Wait for the deployment to finish rolling out
+        kubectl rollout status deployment/${{ env.ACK_DEPLOYMENT_NAME }}
+        
+        # Print service information
+        kubectl get services -o wide
+        on: 
+         bash:
+          branches: "main" 
+          run npx main
 name: Deploy web app to Azure Static Web Apps
 
 on:
